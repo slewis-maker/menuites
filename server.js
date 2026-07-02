@@ -65,7 +65,7 @@ app.post('/api/gemini', rateLimit, async (req, res) => {
     const prompt = `Below is the raw OCR output from a restaurant menu. Extract each dish into a JSON array. For each dish include:
 - name (string, in the original menu language, cleaned up — what the diner would say to the server)
 - translated_name (literal English translation of the name; if already English, use the same value)
-- description (short English context — what the dish actually is, ~1 sentence with notable prep style or cultural note; or null if unremarkable)
+- description (short English context — max 12 words, only if it adds real info beyond the translation; or null)
 - section (starter/pasta/main/side/dessert/drink/other, best guess)
 - ingredients (array of key ingredients in English)
 - dietary_tags (array — pick from: vegetarian, vegan, gluten-free, contains-pork, contains-beef, contains-veal, contains-lamb, contains-fish, contains-shellfish, contains-dairy, contains-nuts, spicy, or add relevant tags)
@@ -84,7 +84,7 @@ ${ocrText}`;
           contents: [{ parts: [{ text: prompt }] }],
           generationConfig: {
             temperature: 0.1,
-            maxOutputTokens: 4096,
+            maxOutputTokens: 8192,
             responseMimeType: 'application/json',
           },
         }),
