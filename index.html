@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=5">
+  <title>Menuites</title>
+  <style>
+    :root {
+      --bg: #fafaf7;
+      --surface: #ffffff;
+      --text: #1a1a1a;
+      --muted: #666;
+      --border: #e0e0dc;
+      --accent: #185FA5;
+      --success: #0F6E56;
+      --warn: #BA7517;
+      --danger: #A32D2D;
+    }
+    * { box-sizing: border-box; }
+    body {
+      font-family: -apple-system, system-ui, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      margin: 0 auto;
+      padding: 20px;
+      line-height: 1.5;
+      max-width: 720px;
+    }
+    h1 { font-size: 22px; font-weight: 500; margin: 0 0 4px; }
+    h2 { font-size: 16px; font-weight: 500; margin: 24px 0 8px; }
+    .subtitle { color: var(--muted); margin: 0 0 20px; font-size: 14px; }
+    section {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 16px;
+      margin-bottom: 16px;
+    }
+    label { display: block; font-size: 13px; color: var(--muted); margin-bottom: 6px; }
+    input[type="file"], textarea {
+      width: 100%;
+      padding: 10px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      font-size: 14px;
+      background: white;
+      font-family: inherit;
+    }
+    input[type="file"] { padding: 8px; }
+    textarea { min-height: 100px; font-family: ui-monospace, "SF Mono", monospace; font-size: 12px; }
+    button {
+      display: block;
+      width: 100%;
+      padding: 12px;
+      margin-bottom: 8px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: white;
+      color: var(--text);
+      font-size: 14px;
+      font-weight: 500;
+      cursor: pointer;
+    }
+    button:hover:not(:disabled) { background: #f5f5f0; }
+    button:disabled { opacity: 0.4; cursor: not-allowed; }
+    button.primary { background: var(--accent); color: white; border-color: var(--accent); }
+    button.primary:hover:not(:disabled) { background: #144a80; }
+    button.small { padding: 8px; font-size: 13px; margin: 0; width: auto; display: inline-block; }
+    #preview { margin-top: 12px; text-align: center; }
+    #preview img { max-width: 100%; max-height: 400px; border-radius: 8px; border: 1px solid var(--border); }
+    .result {
+      margin-top: 12px;
+      padding: 12px;
+      background: #f8f8f4;
+      border-radius: 8px;
+      font-family: ui-monospace, "SF Mono", monospace;
+      font-size: 12px;
+      white-space: pre-wrap;
+      word-wrap: break-word;
+      max-height: 500px;
+      overflow-y: auto;
+    }
+    .meta {
+      font-size: 12px;
+      color: var(--muted);
+      margin-bottom: 6px;
+      display: flex;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+    .meta .time { color: var(--success); font-weight: 500; }
+    .status {
+      font-size: 13px;
+      color: var(--muted);
+      margin-top: 8px;
+      font-style: italic;
+      min-height: 1.2em;
+    }
+    .row { display: flex; gap: 8px; align-items: center; margin-bottom: 8px; }
+    .row button { flex: 1; margin: 0; }
+  </style>
+</head>
+<body>
+
+  <h1>Menuites</h1>
+  <p class="subtitle">Point at a menu, get structured dishes with translations and dietary tags.</p>
+
+  <section>
+    <label for="menuImage">Take a photo of a menu, or upload one</label>
+    <input type="file" id="menuImage" accept="image/*" capture="environment">
+    <div id="preview"></div>
+  </section>
+
+  <section>
+    <h2>Step 1 — OCR</h2>
+    <div class="row">
+      <button id="runVision" class="primary" disabled>Run OCR</button>
+      <button id="loadSample" class="small">Use sample text</button>
+    </div>
+    <div id="ocrStatus" class="status">Choose an image or click "Use sample text" to skip to Gemini.</div>
+    <label for="ocrText" style="margin-top: 12px;">OCR output (editable)</label>
+    <textarea id="ocrText"></textarea>
+  </section>
+
+  <section>
+    <h2>Step 2 — Structure into dishes</h2>
+    <button id="runGemini" class="primary" disabled>Extract dishes</button>
+    <div id="structStatus" class="status">Get OCR text above first.</div>
+  </section>
+
+  <section id="structuredSection" style="display:none;">
+    <h2>Structured dishes</h2>
+    <div id="structuredMeta" class="meta"></div>
+    <div id="structuredResult" class="result"></div>
+  </section>
+
+  <script>
+    const $ = (id) => document.getElementById(id);
+    const fileInput = $('menuImage');
+    const preview = $('preview');
+    const runVisionBtn = $('runVision');
+    const loadSampleBtn = $('loadSample');
+    const ocrStatus = $('ocrStatus');
+    const ocrTextArea = $('ocrText');
+    const runGeminiBtn = $('runGemini');
+    const structStatus = $('structStatus');
+
+    const SAMPLE_OCR = `Gli Antipasti
+Prosciutto di Parma D.O.P. 24 mesi
+Culatello di Zibello D.O.P.
+Mozzarella di Bufala D.O.P. (125 gr.)
+Caprese di Mozzarella di Bufala, Pomodoro e Basilico
+Carpaccio di Black Angus Affumicato con Rucola e Parmigiano
+Le Paste
+Tagliatelle alla Bolognese (Classico Ragù di Manzo)
+Tortellini Bolognesi (Burro e Parmigiano, o in Brodo)
+Lasagna Verde alla Bolognese
+Ravioli di Zucca Burro e Salvia
+Le Carni
+Costoletta di Vitello alla Milanese
+Ossobuco di Vitella con Risotto alla Milanese`;
+
+    let currentImageBase64 = null;
+
+    fileInput.addEventListener('change', (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = (ev) => {
+        currentImageBase64 = ev.target.result.split(',')[1];
+        preview.innerHTML = '<img src="' + ev.target.result + '" alt="menu preview">';
+        runVisionBtn.disabled = false;
+        ocrStatus.textContent = 'Image loaded. Click "Run OCR".';
+      };
+      reader.readAsDataURL(file);
+    });
+
+    loadSampleBtn.addEventListener('click', () => {
+      ocrTextArea.value = SAMPLE_OCR;
+      runGeminiBtn.disabled = false;
+      structStatus.textContent = 'Sample loaded. Click "Extract dishes".';
+    });
+
+    ocrTextArea.addEventListener('input', () => {
+      runGeminiBtn.disabled = !ocrTextArea.value.trim();
+    });
+
+    function setStatus(el, msg, isError) {
+      el.textContent = msg || '';
+      el.style.color = isError ? 'var(--danger)' : 'var(--muted)';
+    }
+
+    runVisionBtn.addEventListener('click', async () => {
+      if (!currentImageBase64) return;
+      runVisionBtn.disabled = true;
+      setStatus(ocrStatus, 'Running OCR...');
+      const start = performance.now();
+      try {
+        const res = await fetch('/api/vision', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ imageBase64: currentImageBase64 }),
+        });
+        if (!res.ok) throw new Error('OCR error ' + res.status + ': ' + (await res.text()));
+        const json = await res.json();
+        const response = json.responses && json.responses[0];
+        if (response && response.error) throw new Error(response.error.message);
+        const text = (response && response.fullTextAnnotation && response.fullTextAnnotation.text) || '(no text)';
+        ocrTextArea.value = text;
+        runGeminiBtn.disabled = false;
+        const elapsed = ((performance.now() - start) / 1000).toFixed(1);
+        setStatus(ocrStatus, 'OCR done in ' + elapsed + 's.');
+      } catch (err) {
+        setStatus(ocrStatus, err.message, true);
+      } finally {
+        runVisionBtn.disabled = false;
+      }
+    });
+
+    runGeminiBtn.addEventListener('click', async () => {
+      const text = ocrTextArea.value.trim();
+      if (!text) return;
+      runGeminiBtn.disabled = true;
+      setStatus(structStatus, 'Structuring...');
+      const start = performance.now();
+      try {
+        const res = await fetch('/api/gemini', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ ocrText: text }),
+        });
+        if (!res.ok) throw new Error('Gemini error ' + res.status + ': ' + (await res.text()));
+        const json = await res.json();
+        const responseText = json.candidates && json.candidates[0] && json.candidates[0].content && json.candidates[0].content.parts[0].text;
+        if (!responseText) throw new Error('No response from Gemini');
+        let display = responseText;
+        let count = '';
+        try {
+          const parsed = JSON.parse(responseText);
+          display = JSON.stringify(parsed, null, 2);
+          count = ' · ' + parsed.length + ' dishes';
+        } catch (e) {}
+        const elapsed = ((performance.now() - start) / 1000).toFixed(1);
+        $('structuredSection').style.display = 'block';
+        $('structuredMeta').innerHTML = '<span class="time">' + elapsed + 's</span><span>' + count.replace(' · ', '') + '</span>';
+        $('structuredResult').textContent = display;
+        setStatus(structStatus, 'Done.');
+      } catch (err) {
+        setStatus(structStatus, err.message, true);
+      } finally {
+        runGeminiBtn.disabled = false;
+      }
+    });
+  </script>
+
+</body>
+</html>
