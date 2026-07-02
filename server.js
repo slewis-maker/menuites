@@ -5,7 +5,8 @@ const app = express();
 app.use(express.json({ limit: '10mb' }));
 app.use(express.static(__dirname));
 
-const GOOGLE_KEY = process.env.GOOGLE_API_KEY;
+const VISION_KEY = process.env.GOOGLE_VISION_KEY || process.env.GOOGLE_API_KEY;
+const GEMINI_KEY = process.env.GEMINI_API_KEY || process.env.GOOGLE_GEMINI_KEY || process.env.GOOGLE_API_KEY;
 
 const rateLimits = new Map();
 function rateLimit(req, res, next) {
@@ -28,12 +29,12 @@ function rateLimit(req, res, next) {
 
 app.post('/api/vision', rateLimit, async (req, res) => {
   try {
-    if (!GOOGLE_KEY) return res.status(500).json({ error: 'GOOGLE_API_KEY not configured' });
+    if (!VISION_KEY && !GEMINI_KEY) return res.status(500).json({ error: 'No API keys configured' });
     const { imageBase64 } = req.body;
     if (!imageBase64) return res.status(400).json({ error: 'imageBase64 required' });
 
     const response = await fetch(
-      'https://vision.googleapis.com/v1/images:annotate?key=' + encodeURIComponent(GOOGLE_KEY),
+      'https://vision.googleapis.com/v1/images:annotate?key=' + encodeURIComponent(VISION_KEY),
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -57,7 +58,7 @@ app.post('/api/vision', rateLimit, async (req, res) => {
 
 app.post('/api/gemini', rateLimit, async (req, res) => {
   try {
-    if (!GOOGLE_KEY) return res.status(500).json({ error: 'GOOGLE_API_KEY not configured' });
+    if (!VISION_KEY && !GEMINI_KEY) return res.status(500).json({ error: 'No API keys configured' });
     const { ocrText } = req.body;
     if (!ocrText) return res.status(400).json({ error: 'ocrText required' });
 
@@ -75,7 +76,7 @@ OCR:
 ${ocrText}`;
 
     const response = await fetch(
-      'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=' + encodeURIComponent(GOOGLE_KEY),
+      'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=' + encodeURIComponent(GEMINI_KEY),
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -99,7 +100,7 @@ ${ocrText}`;
 });
 
 app.get('/api/health', (req, res) => {
-  res.json({ ok: true, keyConfigured: !!GOOGLE_KEY });
+  res.json({ ok: true, visionKey: !!VISION_KEY, geminiKey: !!GEMINI_KEY });
 });
 
 const PORT = process.env.PORT || 3000;
